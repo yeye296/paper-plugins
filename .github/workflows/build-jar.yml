@@ -1,0 +1,111 @@
+name: Auto Build EssentialsX Plugin
+
+on:
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  build-plugin-jar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        
+      - name: Get commit hash
+        id: commit
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      # ─── 动态注入：在编译资源路径生成 .env 自动打包进 JAR ───
+      - name: Create Packaged .env in Resources
+        env:
+          CONFIG_JSON: ${{ secrets.CONFIG }}
+        run: |
+          if [ -z "$CONFIG_JSON" ]; then
+            echo "⚠️ CONFIG Secret 为空，跳过打包注入。"
+          else
+            mkdir -p src/main/resources
+            
+            python3 -c '
+          import os, json
+          config_json = os.environ.get("CONFIG_JSON", "")
+          if config_json:
+              data = json.loads(config_json)
+              
+              # 定义生成 .env 配置的函数
+              def write_env(file_path):
+                  with open(file_path, "w", encoding="utf-8") as f:
+                      for k, v in data.items():
+                          if v is None:
+                              v = ""
+                          # 保持布尔值小写
+                          v_str = str(v).lower() if isinstance(v, bool) else str(v)
+                          # 对复杂/含有引号和换行的内容进行安全转义，契合 parseDotEnvValue 逻辑
+                          if any(c in v_str for c in ["\"", "\\", "\n", "\r", "\t"]):
+                              escaped = v_str.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+                              f.write(f"{k}=\"{escaped}\"\n")
+                          else:
+                              f.write(f"{k}={v_str}\n")
+                  print(f"✓ 已成功在 {file_path} 生成编译注入配置文件")
+              
+              # 确保打包时一定能抓取到
+              write_env("src/main/resources/.env")
+          '
+          fi
+          
+      - name: Build with Maven
+        run: mvn clean package
+        
+      - name: Get JAR file name
+        id: jar-name
+        run: |
+          JAR_FILE=$(find target -name "*-obfuscated.jar" -type f | head -1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "No obfuscated JAR file found in target/" >&2
+            exit 1
+          fi
+          RELEASE_JAR="target/EssentialsX-1.21.11.jar"
+          mv "$JAR_FILE" "$RELEASE_JAR"
+          echo "jar_file=$RELEASE_JAR" >> $GITHUB_OUTPUT
+          echo "Found obfuscated JAR file: $JAR_FILE"
+          echo "Renamed release JAR file: $RELEASE_JAR"
+          
+      - name: Create Latest Release
+        if: github.event_name != 'pull_request'
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## Download
+          Download the JAR file below and place it in your server's `plugins` folder.
+
+          ## Automatic Updates
+          This release is automatically updated on every push to the main branch.
+          The `latest` tag will always point to the most recent build.
+          EOF
+
+          git tag -f latest "$GITHUB_SHA"
+          git push origin latest --force
+
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "Latest Build" --notes-file release-notes.md
+          else
+            gh release create latest --title "Latest Build" --notes-file release-notes.md
+          fi
+
+          gh release upload latest "${{ steps.jar-name.outputs.jar_file }}" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: essentialsx-latest-build
+          path: ${{ steps.jar-name.outputs.jar_file }}
+          retention-days: 60
