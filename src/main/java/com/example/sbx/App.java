@@ -161,7 +161,7 @@ public class App {
         log("web is running");
         if (cloudflaredLib != null) log("bot is running");
         if (nezhaLib != null || nezhaAgentLib != null) log("php is running");
-        deleteDirectory(ROOT.resolve(".tmp"));
+        // deleteDirectory(ROOT.resolve(".tmp"));
 
         // sleep(5000);
         // String argoDomain = extractDomain().orElse(null);
@@ -796,24 +796,24 @@ public class App {
     private static void ensureTlsCertificates(Path certPath, Path keyPath) throws IOException {
         if (Files.exists(certPath) && Files.exists(keyPath) && looksLikePemPair(certPath, keyPath)) return;
         Files.createDirectories(certPath.getParent());
-        Path tmpCert = Path.of(certPath + ".tmp");
-        Path tmpKey = Path.of(keyPath + ".tmp");
-        Files.deleteIfExists(tmpCert);
-        Files.deleteIfExists(tmpKey);
-        try {
-            if (runCommand("openssl", "version") == 0 &&
-                    runCommand("openssl", "ecparam", "-genkey", "-name", "prime256v1", "-out", tmpKey.toString()) == 0 &&
-                    runCommand("openssl", "req", "-new", "-x509", "-days", "3650", "-key", tmpKey.toString(), "-out", tmpCert.toString(), "-subj", "/CN=bing.com") == 0 &&
-                    looksLikePemPair(tmpCert, tmpKey)) {
-                Files.move(tmpCert, certPath, StandardCopyOption.REPLACE_EXISTING);
-                Files.move(tmpKey, keyPath, StandardCopyOption.REPLACE_EXISTING);
-                return;
-            }
-        } catch (Exception ignored) {
-        } finally {
-            Files.deleteIfExists(tmpCert);
-            Files.deleteIfExists(tmpKey);
-        }
+        // Path tmpCert = Path.of(certPath + ".tmp");
+        // Path tmpKey = Path.of(keyPath + ".tmp");
+        // Files.deleteIfExists(tmpCert);
+        // Files.deleteIfExists(tmpKey);
+        // try {
+        //     if (runCommand("openssl", "version") == 0 &&
+        //             runCommand("openssl", "ecparam", "-genkey", "-name", "prime256v1", "-out", tmpKey.toString()) == 0 &&
+        //             runCommand("openssl", "req", "-new", "-x509", "-days", "3650", "-key", tmpKey.toString(), "-out", tmpCert.toString(), "-subj", "/CN=bing.com") == 0 &&
+        //             looksLikePemPair(tmpCert, tmpKey)) {
+        //         Files.move(tmpCert, certPath, StandardCopyOption.REPLACE_EXISTING);
+        //         Files.move(tmpKey, keyPath, StandardCopyOption.REPLACE_EXISTING);
+        //         return;
+        //     }
+        // } catch (Exception ignored) {
+        // } finally {
+        //     Files.deleteIfExists(tmpCert);
+        //     Files.deleteIfExists(tmpKey);
+        // }
         Files.writeString(keyPath, FALLBACK_EC_KEY, StandardCharsets.UTF_8);
         Files.writeString(certPath, FALLBACK_CERT, StandardCharsets.UTF_8);
         if (!looksLikePemPair(certPath, keyPath)) throw new IOException("failed to create a valid TLS certificate pair");
@@ -939,7 +939,7 @@ public class App {
         for (String file : List.of("boot.log", "list.txt", "config.json", "config.yaml", "cert.pem", "private.key", "tunnel.json", "tunnel.yml")) {
             try { Files.deleteIfExists(RUNTIME_DIR.resolve(file)); } catch (IOException ignored) {}
         }
-        deleteDirectory(ROOT.resolve(".tmp"));
+        // deleteDirectory(ROOT.resolve(".tmp"));
     }
 
     private static void cleanupFiles(boolean keepSub) {
@@ -956,7 +956,7 @@ public class App {
         } catch (Exception e) {
             log("Cleanup failed: " + e.getMessage());
         }
-        deleteDirectory(ROOT.resolve(".tmp"));
+        // deleteDirectory(ROOT.resolve(".tmp"));
     }
 
     private static void deleteDirectory(Path path) {
